@@ -1,9 +1,4 @@
-
-import java.io.IOException;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-
-public class network {
+public class UDPNetwork {
 
 	public static void main(String[] args) {
 		// TODO Auto-generated method stub

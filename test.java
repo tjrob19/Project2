@@ -19,7 +19,7 @@ public class test {
 	
 	// Overload constructor for network object
 	public test (int port){
-		this._port = port;
+		_port = port;
 	}
 	
 	public int createSocket() {
@@ -67,10 +67,14 @@ public class test {
 	{
 
 		DatagramPacket newDatagramPacket = receiveRequest();
+		String request = new String (newDatagramPacket.getData()).trim();
+		String segment = request.substring(43);
 		System.out.println ("Destination IP: " + destIP);
 		System.out.println ("sender request: " + destPort);
 		newDatagramPacket.setPort(destPort);
-		newDatagramPacket.setAddress(_destIP);
+		//newDatagramPacket.setAddress(_destIP);
+		System.out.println("Forwarding packet with '" + segment + "' to following address (IP, PORT): " + destIP + 
+						   ", " + destPort);
 				
 				try {
 					_socket.send(newDatagramPacket);
@@ -101,7 +105,6 @@ public class test {
 			return;
 		}
 		
-		network.createSocket();
 		network.run();
 		network.closeSocket();
 		

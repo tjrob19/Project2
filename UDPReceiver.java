@@ -4,23 +4,35 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 
 /**
- * Receive Packet object.
+ * Receiver Packet object.
+ *
+ * @author Chakrya Ros
+ * @author Trevor Robinson
  */
 
 public class UDPReceiver {
 
 	private static final int BUFFER_SIZE = 54;
 	private DatagramSocket _socket; // the socket for communication with clients
-	private int            _port;   // the port number for communication with this server
+	private int            _rcvPort;   // the port number for communication with this server
+
+	private String _rcvHost;  // the receiver host name.
 	private boolean        _continueService;
+
+	byte[] _packetIn;
+
+	byte[] _packetOut;
 
 	/**
 	 * Constructs a UDPserver object.
 	 */
 	public UDPReceiver (int port) {
-		_port = port;
+		_rcvPort = port;
 	}
 
 	/**
@@ -30,7 +42,7 @@ public class UDPReceiver {
 	 */
 	public int createSocket() {
 		try {
-			_socket = new DatagramSocket(_port);
+			_socket = new DatagramSocket(_rcvPort);
 		} catch (SocketException ex) {
 			System.err.println("unable to create and bind socket");
 			return -1;
@@ -39,31 +51,65 @@ public class UDPReceiver {
 		return 0;
 	}
 
-	public void run()
-	{
+	/**
+	 * Run server.
+	 *
+	 */
+	public void run() {
 		// run server until gracefully shut down
 		_continueService = true;
 
+		String output = "";
+		int totalReceived = 0;
+		StringBuilder msg = new StringBuilder();
+		System.out.println("Waiting... connect sender.......");
+
 		while (_continueService) {
-			DatagramPacket newDatagramPacket = receiveRequest();
+			DatagramPacket newDatagramPacket = receiveRequest();  //receive the packet
+			Charset charset = StandardCharsets.US_ASCII;
+			String request = charset.decode(ByteBuffer.wrap(newDatagramPacket.getData()))
+					.toString().trim(); 		//Convert the packet to string.
 
-			String request = new String (newDatagramPacket.getData()).trim();
-			String segment = request.substring(43);
-			System.out.println ("sender IP: " + newDatagramPacket.getAddress().getHostAddress());
-			System.out.println ("sender request: " + segment);
+			String srcIP = request.substring(0, 15);
+			String srcPort = request.substring(16, 20);
+			String destIP = request.substring(22, 37);
+			String destPort = request.substring(39, 43);
+			int seqNum =  Integer.parseInt(request.substring(44, 45));
+			String payload = request.substring(48);
 
+			msg.append(payload);
+			totalReceived += 1;
+			System.out.println ("sender IP: " + newDatagramPacket.getAddress().getHostAddress() + " SeqNum: " + seqNum);
+			System.out.println ("sender request: " + request);
 			if (request.equals("<shutdown/>")) {
 				_continueService = false;
 			}
 
 			if (request != null) {
 
-				String response = "<echo>"+segment+"</echo>";
+				// Create packet.
+				UDPPacket packet = new UDPPacket(destPort, destIP, srcPort, srcIP, seqNum);
+				// Print out current sequence number, total packets received, message, and ACK to be transmitted
+				output = "Waiting " + packet.getSequence() + ", " + totalReceived + ", " + payload + ", " + packet.validateMessage();
+				System.out.println(output);
+				_packetOut = new byte[BUFFER_SIZE];
 
-				sendResponse(
-						response,
-						newDatagramPacket.getAddress().getHostName(),
+				// Make packet.
+				_packetOut = packet.makePacket(payload);
+
+				// Send the response.
+				sendResponse(request, newDatagramPacket.getAddress().getHostName(),
 						newDatagramPacket.getPort());
+
+				// print the full message when the last packet receive.
+				if(packet.isLastMessage)
+				{
+					System.out.println("The message: " + msg);
+
+					// clear the old message.
+					msg = new StringBuilder();
+					output = " ";
+				}
 			}
 			else {
 				System.err.println ("incorrect response from server");
@@ -126,7 +172,6 @@ public class UDPReceiver {
 		System.out.println("FROM SERVER: " + response);
 	}
 
-
 	/*
 	 * Closes an open socket.
 	 *
@@ -142,8 +187,7 @@ public class UDPReceiver {
 	 * The main function. Use this function for
 	 * testing your code. We will provide a new main function on the day of the lab demo.
 	 */
-	public static void main(String[] args)
-	{
+	public static void main(String[] args) {
 		UDPReceiver  server;
 		String    serverName;
 		String    req;

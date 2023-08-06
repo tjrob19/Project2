@@ -1,14 +1,8 @@
-import java.io.Serializable;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Objects;
-import java.util.zip.Checksum;
-import java.util.zip.CRC32;
 
 /**
  * UDP Packet object.
@@ -16,23 +10,19 @@ import java.util.zip.CRC32;
  * @author Chakrya Ros
  * @author Trevor Robinson
  */
-public class UDPPacket implements Serializable {
+public class UDPPacket {
 
     private static final int PACKET_SIZE = 54;
     private String _srcPort;   // sender port number
-    private String _srcHost = ""; // sender IP address
+    private String _srcHost; // sender IP address
     private String _rcvPort;  // server port number
-    private String _rcvHost = ""; // server IP address
-
+    private String _rcvHost; // server IP address
     private String _request;
-
     public int _seqNum;   // sequence 0 or 1
-    private String _ack;    // acknowledgement
+    private String _checksum;  //CheckSum
+    private byte[] _segment;  //Store header
 
-    private int _checksum;
-    private byte[] _segment;
-
-    public boolean isLastMessage;
+    public boolean isLastMessage;  //Check for end of message
 
 
     /**
@@ -49,21 +39,6 @@ public class UDPPacket implements Serializable {
     }
 
     /*
-     * Corrupting the packet.
-     */
-    public void requestCorrupt(){
-        this._request = this._request +"C";
-    }
-
-    /*
-     * Send the request successful.
-     */
-    public void requestSuccess(){
-        this._request = this._request.substring(0, this._request.length()-1);
-    }
-
-
-    /*
      * Get the sequence.
      */
     public Integer getSequence(){
@@ -71,10 +46,10 @@ public class UDPPacket implements Serializable {
     }
 
     /*
-     * Get acknowledgement.
+     * Get segment.
      */
-    public String getAck(){
-        return _ack;
+    public byte[] getSegment(){
+        return _segment;
     }
 
     /*
@@ -83,18 +58,30 @@ public class UDPPacket implements Serializable {
      * @param s: sender message.
      * @return the integer of checksum.
      */
-    public Integer generateChecksum(String s) {
+    public String generateChecksum(String s) {
         int charToInt;
         int sum = 0;
-        if(s == null) return -1;
+        if(s == null) return null;
         for (int i = 0; i < s.length(); i++) {
             charToInt = (int) s.charAt(i);
             sum = sum + charToInt;
+
+            // Set the end of message
             if ((int) s.charAt(i) == 46) {
                 isLastMessage = true;
             }
         }
-        return sum;
+        //Convert to String and make it three byte.
+        String checkSum = Integer.toString(sum);
+        if(checkSum.length() > 3)
+        {
+            return checkSum.substring(0,2);
+        }else if(checkSum.length() == 2)
+        {
+            return  checkSum + '0';
+        }else {
+            return checkSum;
+        }
     }
 
     /*
@@ -103,7 +90,7 @@ public class UDPPacket implements Serializable {
      * @return the acknowledgment.
      */
     public String validateMessage() {
-        Integer newChecksum = generateChecksum(_request);
+        String newChecksum = generateChecksum(_request);
         String ack;
         if (newChecksum.equals(_checksum)) {
             ack = "ACK" + _seqNum;
@@ -122,21 +109,9 @@ public class UDPPacket implements Serializable {
     }
 
     /*
-     * Flip the sequence number.
-     */
-    public void getSequenceNum() {
-        if (_seqNum == 0) {
-            _seqNum = 1;
-        }
-        else {
-            _seqNum = 0;
-        }
-    }
-
-    /*
      * Make the packet;
      */
-    public byte[] makePacket(String request) {
+    public void makePacket(String request) {
         _segment = new byte[PACKET_SIZE];
 
         // empty message into buffer
@@ -144,26 +119,24 @@ public class UDPPacket implements Serializable {
             _segment[i] = '\0';
         }
 
-        _request = request;
-        _checksum = generateChecksum(_request);  // generate the checksum
+        _request = request;     // user
+        _checksum = generateChecksum(request);  // generate the checksum
         Charset charset = StandardCharsets.US_ASCII;
         String srcIP_Port = _srcHost + " " + _srcPort + " "; // Combine source IP and port to single string.
-        String destIP_Port = _srcHost + " " + _rcvPort + " "; // Combine destination IP and port to single string.
+        String destIP_Port = _rcvHost + " " + _rcvPort + " "; // Combine destination IP and port to single string.
         String seqNumStr = Integer.toString(_seqNum);  //Convert sequence number to string.
-        String checksum = Integer.toString(_checksum); //Convert checksum number to string.
-        String payload = seqNumStr + checksum + _request;
+        String headerString = seqNumStr + _checksum + _request;
 
         // convert to byte array.
         byte[] srcPort = srcIP_Port.getBytes(charset);
         byte[] destPort = destIP_Port.getBytes(charset);
-        byte [] header = payload.getBytes(charset);
+        byte [] header = headerString.getBytes(charset);
 
         //Copy to array
         System.arraycopy(srcPort, 0, _segment, 0, srcPort.length);
         System.arraycopy(destPort, 0, _segment, 22, destPort.length);
         System.arraycopy(header, 0, _segment, 44, header.length);
 
-        return _segment;
     }
 
 
@@ -177,9 +150,9 @@ public class UDPPacket implements Serializable {
         String hostName = GetHostName(str); // Make sure it's not "localhost"
         String second = "000.000.00";
         String newStr = "";
-        if(sizeStr == 16)
+        if(sizeStr == 15 || sizeStr > 16)
         {
-            return str;
+            return str.substring(0, 15);
         }else if (sizeStr == 9)
         {
             String first = hostName.substring(10, 14);
@@ -211,14 +184,10 @@ public class UDPPacket implements Serializable {
     @Override
     public String toString() {
 
-        return "Packet {\n" +
-                "\t\t\t[Src port   = " + _srcPort + "]\n" +
-                "\t\t\t[Dest port = " + _rcvPort + "]\n" +
-                "\t\t\t[Seq num    = " + _seqNum + "]\n" +
-                "\t\t\t[Ack num    = " + _ack+ "]\n" +
-                "\t\t\t[Check sum    = " + _checksum+ "]\n" +
-                "\t\t\t[Segment ("+ _segment.length +" bytes) = " +
-                Arrays.toString(_segment) + "]\n" +
+        return "Packet {\t" + "\n[Seq num    = " + _seqNum + "]\n" +
+                "\t[Check sum    = " + _checksum+ "]\n" +
+                "\t[Request    = " + _request + "]\n" +
+                "\t[Segment ("+ _segment.length +" bytes)]\n" +
                 "\t}";
     }
 
@@ -226,14 +195,11 @@ public class UDPPacket implements Serializable {
     public static void main(String[] args) {
 
         String request = "hello wo";
-        long checksum = CheckSum.CalculateChecksum(request.getBytes());
         UDPPacket packet = new UDPPacket("60000", "localhost",
                 "60100","localhost", 0);
         try {
-            byte[] pSegment = packet.makePacket(request);
-            System.out.println(packet.generateChecksum(request));
+            packet.makePacket(request);
             System.out.println(packet);
-
         } catch (Exception e) {
             e.printStackTrace();
         }

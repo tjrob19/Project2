@@ -24,6 +24,8 @@ public class UDPReceiver {
 	private String _rcvHost;  // the receiver host name.
 	private boolean        _continueService;
 
+	int seqNum = 0;
+
 	byte[] _packetIn;
 
 	byte[] _packetOut;
@@ -59,57 +61,88 @@ public class UDPReceiver {
 		// run server until gracefully shut down
 		_continueService = true;
 
-		String output = "";
 		int totalReceived = 0;
-		StringBuilder msg = new StringBuilder();
+		String msg="";
+		int prevSeq = 1;
 		System.out.println("Waiting... connect sender.......");
 
 		while (_continueService) {
 			DatagramPacket newDatagramPacket = receiveRequest();  //receive the packet
 			Charset charset = StandardCharsets.US_ASCII;
 			String request = charset.decode(ByteBuffer.wrap(newDatagramPacket.getData()))
-					.toString().trim(); 		//Convert the packet to string.
+					.toString(); 		//Convert the packet to string.
 
-			String srcIP = request.substring(0, 15);
-			String srcPort = request.substring(16, 20);
-			String destIP = request.substring(22, 37);
-			String destPort = request.substring(39, 43);
-			int seqNum =  Integer.parseInt(request.substring(44, 45));
-			String payload = request.substring(48);
-
-			msg.append(payload);
-			totalReceived += 1;
-			System.out.println ("sender IP: " + newDatagramPacket.getAddress().getHostAddress() + " SeqNum: " + seqNum);
-			System.out.println ("sender request: " + request);
+			System.out.println("sender IP: " + newDatagramPacket.getAddress().getHostAddress() +
+					" Port: " + newDatagramPacket.getPort());
 			if (request.equals("<shutdown/>")) {
 				_continueService = false;
 			}
 
 			if (request != null) {
 
-				// Create packet.
-				UDPPacket packet = new UDPPacket(destPort, destIP, srcPort, srcIP, seqNum);
-				// Print out current sequence number, total packets received, message, and ACK to be transmitted
-				output = "Waiting " + packet.getSequence() + ", " + totalReceived + ", " + payload + ", " + packet.validateMessage();
-				System.out.println(output);
-				_packetOut = new byte[BUFFER_SIZE];
+				String srcIP = request.substring(0, 15);
+				String srcPort = request.substring(16, 21);
+				String destIP = request.substring(22, 37);
+				String destPort = request.substring(38, 43);
+				int rcvSeq= Integer.parseInt(request.substring(44, 45));
+				String checkSum =  (request.substring(45, 48));
+				String payload = request.substring(48);
 
-				// Make packet.
-				_packetOut = packet.makePacket(payload);
+				// Create the packet that receive.
+				UDPPacket rcvPacket = new UDPPacket(srcPort, srcIP, destPort, destIP, rcvSeq);
+				rcvPacket.makePacket(payload);
+				_packetIn = new byte[BUFFER_SIZE];
+				_packetIn = rcvPacket.getSegment();
+				String ack = rcvPacket.validateMessage();
+				String rcvCheckSum = rcvPacket.generateChecksum(payload);
+
+				// Check if duplicate packet
+				if(rcvSeq == seqNum && totalReceived != 0)
+				{
+					totalReceived -= 1;
+					System.out.println("******** There is a duplicate packet **********");
+				}
+
+				// Check if the packet is corrupt.
+				if(checkSum != rcvCheckSum)
+				{
+					System.out.println("Packet: " + totalReceived + " received corrupted");
+					System.out.println("Resend the packet " + (totalReceived-1));
+					totalReceived -= 1;
+					if(rcvSeq == 0){
+						seqNum = 1;
+					}else{
+						seqNum = 0;
+					}
+				}
+
+				// Create packet to send out.
+				UDPPacket packet = new UDPPacket(destPort, destIP, srcPort, srcIP, seqNum);
+				packet.makePacket(payload);
+				_packetOut = new byte[BUFFER_SIZE];
+				_packetOut = packet.getSegment();
 
 				// Send the response.
 				sendResponse(request, newDatagramPacket.getAddress().getHostName(),
 						newDatagramPacket.getPort());
-
+				seqNum = rcvSeq;
+				msg += payload;
+				totalReceived += 1;
 				// print the full message when the last packet receive.
-				if(packet.isLastMessage)
+				if(rcvPacket.isLastMessage) //&& rcvSeq == seqNum)
 				{
-					System.out.println("The message: " + msg);
+					String output = msg.substring(0, msg.length()-1);
+					System.out.println("--------------------------------------------------");
+					System.out.println("Packet completely received: " + output);
 
 					// clear the old message.
-					msg = new StringBuilder();
-					output = " ";
+					msg = "";
+					totalReceived = 0;
+				}else {
+					System.out.println("Received packet: " + totalReceived  + ", Seq: " + rcvPacket.getSequence() + ", "  + ack + ", Message " + payload);
+					System.out.println("Sending ACK for : " + totalReceived);
 				}
+
 			}
 			else {
 				System.err.println ("incorrect response from server");
@@ -163,16 +196,6 @@ public class UDPReceiver {
 	}
 
 	/*
-	 * Prints the response to the screen in a formatted way.
-	 *
-	 * response - the server's response as an XML formatted string
-	 *
-	 */
-	public static void printResponse(String response) {
-		System.out.println("FROM SERVER: " + response);
-	}
-
-	/*
 	 * Closes an open socket.
 	 *
 	 * @return - 0, if no error; otherwise, a negative number indicating the error
@@ -189,9 +212,6 @@ public class UDPReceiver {
 	 */
 	public static void main(String[] args) {
 		UDPReceiver  server;
-		String    serverName;
-		String    req;
-
 		if (args.length != 1) {
 			System.err.println("Usage: UDPserver <port number>\n");
 			return;

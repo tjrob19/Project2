@@ -1,5 +1,8 @@
 import java.io.IOException;
 import java.net.*;
+import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 
 /**
  * Network object.
@@ -14,11 +17,22 @@ public class UDPNetwork {
 	private int            _port;   // the port number for communication with this server
 	private boolean        _continueService;
 
+	private int _lostPercent;
+	private int _delayedPercent;
+	private int _errorPercent;
+
+	byte[] _packetIn;
+
+	byte[] _packetOut;
+
 	/**
 	 * Constructs a UDPserver object.
 	 */
-	public UDPNetwork (int port) {
-		_port = port;
+	public UDPNetwork (int portNum, int lostPercent, int delayedPercent, int errorPercent) {
+		_port = portNum;
+		_lostPercent = lostPercent;
+		_delayedPercent = delayedPercent;
+		_errorPercent = errorPercent;
 	}
 
 	/**
@@ -41,15 +55,24 @@ public class UDPNetwork {
 	{
 		// run server until gracefully shut down
 		_continueService = true;
-
+		int totalReceived = 0;
+		int totalSended = 0;
 		while (_continueService) {
-			DatagramPacket newDatagramPacket = receiveRequest();
+			DatagramPacket newDatagramPacket = receiveRequest();  //receive the packet
+			Charset charset = StandardCharsets.US_ASCII;
+			String request = charset.decode(ByteBuffer.wrap(newDatagramPacket.getData()))
+					.toString(); 		//Convert the packet to string.
 
-			String request = new String (newDatagramPacket.getData()).trim();
+			System.out.println("sender IP: " + newDatagramPacket.getAddress().getHostAddress() +
+					" Port: " + newDatagramPacket.getPort());
+			totalReceived += 1;
+			System.out.println("Receiver Packet: " + totalReceived);
+
+			/*String request = new String (newDatagramPacket.getData()).trim();
 			String segment = request.substring(44);
 			System.out.println ("sender IP: " + newDatagramPacket.getAddress().getHostAddress());
 			System.out.println ("sender request: " + segment);
-			System.out.println ("sender request: " + request);
+			System.out.println ("sender request: " + request);*/
 
 			if (request.equals("<shutdown/>")) {
 				_continueService = false;
@@ -57,12 +80,27 @@ public class UDPNetwork {
 
 			if (request != null) {
 
-				String response = "<echo>"+segment+"</echo>";
+				String srcIP = request.substring(0, 15);
+				String srcPort = request.substring(16, 21);
+				String destIP = request.substring(22, 37);
+				String destPort = request.substring(38, 43);
+				int rcvSeq= Integer.parseInt(request.substring(44, 45));
+				String checkSum =  (request.substring(45, 48));
+				String payload = request.substring(48);
 
-				sendResponse(
-						response,
-						newDatagramPacket.getAddress().getHostName(),
-						newDatagramPacket.getPort());
+				// Create the packet that receive.
+				UDPPacket rcvPacket = new UDPPacket(srcPort, srcIP, destPort, destIP, rcvSeq);
+				rcvPacket.makePacket(payload);
+				_packetIn = new byte[BUFFER_SIZE];
+				_packetIn = rcvPacket.getSegment();
+
+				// Send the response.
+				sendResponse(_packetIn, destIP, Integer.parseInt(destPort));
+				totalSended  += 1;
+				System.out.println("Packets Delayed:\t" + _delayedPercent  + "\t" +
+						"Packets Corrupt:\t" + _errorPercent + "\t" +
+						"Packets Lost:\t" + _lostPercent + "\t" +
+						"Sender packets:\t" + totalSended);
 			}
 			else {
 				System.err.println ("incorrect response from server");
@@ -74,14 +112,14 @@ public class UDPNetwork {
 	 * Sends a request for service to the server. Do not wait for a reply in this function. This will be
 	 * an asynchronous call to the server.
 	 *
-	 * @param response - the response to be sent
+	 * @param packet - the packet to be sent
 	 * @param hostAddr - the ip or hostname of the server
 	 * @param port - the port number of the server
 	 *
 	 * @return - 0, if no error; otherwise, a negative number indicating the error
 	 */
-	public int sendResponse(String response, String hostAddr, int port) {
-		DatagramPacket newDatagramPacket = createDatagramPacket(response, hostAddr, port);
+	public int sendResponse(byte[] packet, String hostAddr, int port) {
+		DatagramPacket newDatagramPacket = createDatagramPacket(packet, hostAddr, port);
 		if (newDatagramPacket != null) {
 			try {
 				_socket.send(newDatagramPacket);
@@ -140,16 +178,15 @@ public class UDPNetwork {
 
 	public static void main(String[] args) {
 		// TODO Auto-generated method stub
-		String port = args[0];
-		String lostPercent = args[1];
-		String delayedPercent = args[2];
-		String errorPercent = args[3];
+		int lostPercent;
+		int delayedPercent;
+		int errorPercent;
 
 		UDPNetwork  server;
 		String    serverName;
 		String    req;
 
-		if (args.length != 1) {
+		if (args.length != 4) {
 			System.err.println("Usage: UDPNetwork <port number>\n");
 			return;
 		}
@@ -157,6 +194,9 @@ public class UDPNetwork {
 		int portNum;
 		try {
 			portNum = Integer.parseInt(args[0]);
+			lostPercent = Integer.parseInt(args[1]);
+			delayedPercent = Integer.parseInt(args[2]);
+			errorPercent = Integer.parseInt(args[3]);
 			System.err.println("Port number: " + portNum);
 		} catch (NumberFormatException xcp) {
 			System.err.println("Usage: UDPNetwork <port number>\n");
@@ -164,7 +204,7 @@ public class UDPNetwork {
 		}
 
 		// construct client and client socket
-		server = new UDPNetwork (portNum);
+		server = new UDPNetwork (portNum, lostPercent, delayedPercent, errorPercent);
 		if (server.createSocket() < 0) {
 			return;
 		}
@@ -176,25 +216,14 @@ public class UDPNetwork {
 	/**
 	 * Creates a datagram from the specified request and destination host and port information.
 	 *
-	 * @param request - the request to be submitted to the server
+	 * @param packet - the  packet request to be submitted to the server
 	 * @param hostname - the hostname of the host receiving this datagram
 	 * @param port - the port number of the host receiving this datagram
 	 *
 	 * @return a complete datagram or null if an error occurred creating the datagram
 	 */
-	private DatagramPacket createDatagramPacket(String request, String hostname, int port)
+	private DatagramPacket createDatagramPacket(byte[] packet, String hostname, int port)
 	{
-		byte buffer[] = new byte[BUFFER_SIZE];
-
-		// empty message into buffer
-		for (int i = 0; i < BUFFER_SIZE; i++) {
-			buffer[i] = '\0';
-		}
-
-		// copy message into buffer
-		byte data[] = request.getBytes();
-		System.arraycopy(data, 0, buffer, 0, Math.min(data.length, buffer.length));
-
 		InetAddress hostAddr;
 		try {
 			hostAddr = InetAddress.getByName(hostname);
@@ -203,7 +232,7 @@ public class UDPNetwork {
 			return null;
 		}
 
-		return new DatagramPacket (buffer, BUFFER_SIZE, hostAddr, port);
+		return new DatagramPacket (packet, BUFFER_SIZE, hostAddr, port);
 	}
 
 }

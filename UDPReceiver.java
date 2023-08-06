@@ -24,11 +24,11 @@ public class UDPReceiver {
 	private String _rcvHost;  // the receiver host name.
 	private boolean        _continueService;
 
-	int seqNum = 0;
+	int seqNum = 0;		// sequence number
 
-	byte[] _packetIn;
+	byte[] _packetIn;  // Packet received
 
-	byte[] _packetOut;
+	byte[] _packetOut;	// Packet Sent
 
 	/**
 	 * Constructs a UDPserver object.
@@ -104,7 +104,7 @@ public class UDPReceiver {
 				}
 
 				// Check if the packet is corrupt.
-				if(checkSum != rcvCheckSum)
+				/*if(checkSum != rcvCheckSum)
 				{
 					System.out.println("Packet: " + totalReceived + " received corrupted");
 					System.out.println("Resend the packet " + (totalReceived-1));
@@ -114,7 +114,7 @@ public class UDPReceiver {
 					}else{
 						seqNum = 0;
 					}
-				}
+				}*/
 
 				// Create packet to send out.
 				UDPPacket packet = new UDPPacket(destPort, destIP, srcPort, srcIP, seqNum);
@@ -123,8 +123,9 @@ public class UDPReceiver {
 				_packetOut = packet.getSegment();
 
 				// Send the response.
-				sendResponse(request, newDatagramPacket.getAddress().getHostName(),
+				sendResponse(_packetOut, newDatagramPacket.getAddress().getHostName(),
 						newDatagramPacket.getPort());
+
 				seqNum = rcvSeq;
 				msg += payload;
 				totalReceived += 1;
@@ -154,14 +155,14 @@ public class UDPReceiver {
 	 * Sends a request for service to the server. Do not wait for a reply in this function. This will be
 	 * an asynchronous call to the server.
 	 *
-	 * @param response - the response to be sent
+	 * @param packet - the packet to be sent
 	 * @param hostAddr - the ip or hostname of the server
 	 * @param port - the port number of the server
 	 *
 	 * @return - 0, if no error; otherwise, a negative number indicating the error
 	 */
-	public int sendResponse(String response, String hostAddr, int port) {
-		DatagramPacket newDatagramPacket = createDatagramPacket(response, hostAddr, port);
+	public int sendResponse(byte[] packet, String hostAddr, int port) {
+		DatagramPacket newDatagramPacket = createDatagramPacket(packet, hostAddr, port);
 		if (newDatagramPacket != null) {
 			try {
 				_socket.send(newDatagramPacket);
@@ -239,25 +240,14 @@ public class UDPReceiver {
 	/**
 	 * Creates a datagram from the specified request and destination host and port information.
 	 *
-	 * @param request - the request to be submitted to the server
+	 * @param packet - the  packet request to be submitted to the server
 	 * @param hostname - the hostname of the host receiving this datagram
 	 * @param port - the port number of the host receiving this datagram
 	 *
 	 * @return a complete datagram or null if an error occurred creating the datagram
 	 */
-	private DatagramPacket createDatagramPacket(String request, String hostname, int port)
+	private DatagramPacket createDatagramPacket(byte[] packet, String hostname, int port)
 	{
-		byte buffer[] = new byte[BUFFER_SIZE];
-
-		// empty message into buffer
-		for (int i = 0; i < BUFFER_SIZE; i++) {
-			buffer[i] = '\0';
-		}
-
-		// copy message into buffer
-		byte data[] = request.getBytes();
-		System.arraycopy(data, 0, buffer, 0, Math.min(data.length, buffer.length));
-
 		InetAddress hostAddr;
 		try {
 			hostAddr = InetAddress.getByName(hostname);
@@ -266,7 +256,7 @@ public class UDPReceiver {
 			return null;
 		}
 
-		return new DatagramPacket (buffer, BUFFER_SIZE, hostAddr, port);
+		return new DatagramPacket (packet, BUFFER_SIZE, hostAddr, port);
 	}
 
 }

@@ -47,7 +47,7 @@ public class UDPSender {
 	 */
 	public int createSocket() {
 		try {
-			_socket = new DatagramSocket();
+			_socket = new DatagramSocket(Integer.parseInt(_srcPort));
 		} catch (SocketException ex) {
 			System.err.println("unable to create and bind socket");
 			return -1;
@@ -63,7 +63,7 @@ public class UDPSender {
 	 */
 	public int sendRequest() {
 
-		DatagramPacket newDatagramPacket = createDatagramPacket(_packetOut, _rcvHost, Integer.parseInt(_rcvPort));
+		DatagramPacket newDatagramPacket = createDatagramPacket(_packetOut, _networkHost, _networkPort);
 		if (newDatagramPacket != null) {
 			try {
 				_socket.send(newDatagramPacket);

@@ -211,7 +211,7 @@ public class UDPNetwork {
 		String    req;
 
 		if (args.length != 4) {
-			System.err.println("Usage: UDPNetwork <port number>\n");
+			System.err.println("Usage: UDPNetwork <port number>  <lostPercent> <delayedPercent> <errorPercent>\n");
 			return;
 		}
 
@@ -221,9 +221,9 @@ public class UDPNetwork {
 			lostPercent = Integer.parseInt(args[1]);
 			delayedPercent = Integer.parseInt(args[2]);
 			errorPercent = Integer.parseInt(args[3]);
-			System.err.println("Port number: " + portNum);
+			System.err.println("*********************** NETWORK PORT NUMBER: " + portNum + " ***********************");
 		} catch (NumberFormatException xcp) {
-			System.err.println("Usage: UDPNetwork <port number>\n");
+			System.err.println("Usage: UDPNetwork <port number>  <lostPercent> <delayedPercent> <errorPercent>\n");
 			return;
 		}
 

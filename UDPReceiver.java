@@ -117,7 +117,7 @@ public class UDPReceiver {
 				}*/
 
 				// Create packet to send out.
-				UDPPacket packet = new UDPPacket(destPort, destIP, srcPort, srcIP, seqNum);
+				UDPPacket packet = new UDPPacket(destPort, destIP, srcPort, srcIP, rcvSeq);
 				packet.makePacket(payload);
 				_packetOut = new byte[BUFFER_SIZE];
 				_packetOut = packet.getSegment();
@@ -214,16 +214,16 @@ public class UDPReceiver {
 	public static void main(String[] args) {
 		UDPReceiver  server;
 		if (args.length != 1) {
-			System.err.println("Usage: UDPserver <port number>\n");
+			System.err.println("Usage: UDPReceiver <port number>\n");
 			return;
 		}
 
 		int portNum;
 		try {
 			portNum = Integer.parseInt(args[0]);
-			System.err.println("Port number: " + portNum);
+			System.err.println("*********************** RECEIVER PORT NUMBER: " + portNum + " ***********************");
 		} catch (NumberFormatException xcp) {
-			System.err.println("Usage: UDPserver <port number>\n");
+			System.err.println("Usage: UDPReceiver <port number>\n");
 			return;
 		}
 

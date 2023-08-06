@@ -3,6 +3,7 @@ import java.net.*;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.Random;
 
 /**
  * Network object.
@@ -17,6 +18,8 @@ public class UDPNetwork {
 	private int            _port;   // the port number for communication with this server
 	private boolean        _continueService;
 
+	private Random random = new Random();
+	
 	private int _lostPercent;
 	private int _delayedPercent;
 	private int _errorPercent;
@@ -84,7 +87,7 @@ public class UDPNetwork {
 				String srcPort = request.substring(16, 21);
 				String destIP = request.substring(22, 37);
 				String destPort = request.substring(38, 43);
-				int rcvSeq= Integer.parseInt(request.substring(44, 45));
+				int rcvSeq = Integer.parseInt(request.substring(44, 45));
 				String checkSum =  (request.substring(45, 48));
 				String payload = request.substring(48);
 
@@ -119,8 +122,29 @@ public class UDPNetwork {
 	 * @return - 0, if no error; otherwise, a negative number indicating the error
 	 */
 	public int sendResponse(byte[] packet, String hostAddr, int port) {
+		
+		int rand = random.nextInt(100);
+
+		// Simulate packet loss
+
+		// Simulate corrupt packet
+		
 		DatagramPacket newDatagramPacket = createDatagramPacket(packet, hostAddr, port);
 		if (newDatagramPacket != null) {
+			
+			if (rand < _delayedPercent) {
+				new Thread(() -> {
+                    			try {
+                        			Thread.sleep((long) ((1.5 + random.nextFloat() * 0.5) * 100)); // Delay between 1.5 and 2 times 100 ms
+                        			_socket.send(newDatagramPacket);
+                        			System.out.println("Packet delayed!");
+                    			} catch (InterruptedException | IOException ex) {
+                        			System.err.println("Unable to send delayed message to server");
+                    			}
+                		}).start();
+				return 0;
+			}
+			
 			try {
 				_socket.send(newDatagramPacket);
 			} catch (IOException ex) {

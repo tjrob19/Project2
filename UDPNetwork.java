@@ -108,10 +108,6 @@ public class UDPNetwork {
 				// Send the packet to correct destination
 				sendResponse(_packetIn, destIP, Integer.parseInt(destPort));
 				totalSended  += 1;
-				System.out.println("Packets Delayed:\t" + _delayedPercent  + "%\t" +
-						   "Packets Corrupt:\t" + _errorPercent + "%\t" +
-						   "Packets Lost:" + _lostPercent + "%\t" +
-						   "Sender packets:\t" + totalSended);
 			}
 			else {
 				System.err.println ("incorrect response from server");
@@ -260,6 +256,11 @@ public class UDPNetwork {
 		if (server.createSocket() < 0) {
 			return;
 		}
+
+		// Print percentages provided by user
+		System.out.println("Packets Delayed: " + delayedPercent  + "%\t" +
+				   "Packets Corrupt: " + errorPercent + "%\t" +
+				   "Packets Lost: " + lostPercent);
 
 		// Run the program and close the socket when finished
 		server.run();

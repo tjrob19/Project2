@@ -134,6 +134,10 @@ public class UDPNetwork {
 		int rand = random.nextInt(100);
 
 		// Simulate packet loss
+		if (rand < _lostPercent) {
+			System.out.println("Packet has been lost.");
+			return 0;
+		}
 
 		// Simulate corrupt packet
 
@@ -260,7 +264,7 @@ public class UDPNetwork {
 		// Print percentages provided by user
 		System.out.println("Packets Delayed: " + delayedPercent  + "%\t" +
 				   "Packets Corrupt: " + errorPercent + "%\t" +
-				   "Packets Lost: " + lostPercent);
+				   "Packets Lost: " + lostPercent + "%");
 
 		// Run the program and close the socket when finished
 		server.run();

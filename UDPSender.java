@@ -6,30 +6,31 @@ import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
 /**
- * Sender Packet object.
+ * This program takes user input and sends created packets to the receiver
  *
  * @author Chakrya Ros
  * @author Trevor Robinson
+ * @date 8/6/2023
+ * @info Course COP5518
  */
 public class UDPSender {
 
+	// Global variables
 	private static final int BUFFER_SIZE = 54;
-	private DatagramSocket _socket; // the socket for communication with a server
-	private String _srcPort;    // sender host number.
-	private String _srcHost;    // sender port number.
-	private String _rcvHost; // receiver host name.
-	private String _rcvPort;  // receiver port number.
-	private String _networkHost; // network name.
-	private int _networkPort; // network port number.
-	private String _request;  // request string.
-	byte[] _packetOut;
-
+	private DatagramSocket   _socket; // the socket for communication with a server
+	private String _srcPort;          // sender host number.
+	private String _srcHost;          // sender port number.
+	private String _rcvHost;          // receiver host name.
+	private String _rcvPort;          // receiver port number.
+	private String _networkHost;      // network name.
+	private int    _networkPort;      // network port number.
+	private String _request;          // request string.
+	byte[]         _packetOut;
 	private String _seqNum;
-
 	private String _ack;
 
 	/**
-	 * Constructs a UDPSender object.
+	 * Constructs a UDPSender object
 	 */
 	public UDPSender( String srcPort, String rcvHost, String rcvPort, String networkHost, String networkPort) {
 		_srcPort = srcPort;
@@ -41,7 +42,7 @@ public class UDPSender {
 	}
 
 	/**
-	 * Creates a datagram socket and binds it to a free port.
+	 * Creates a datagram socket and binds it to a free port
 	 *
 	 * @return - 0 or a negative number describing an error code if the connection could not be established
 	 */
@@ -63,18 +64,18 @@ public class UDPSender {
 	 */
 	public int sendRequest() {
 
+		// Create new packet and try to send to the server
 		DatagramPacket newDatagramPacket = createDatagramPacket(_packetOut, _networkHost, _networkPort);
 		if (newDatagramPacket != null) {
 			try {
 				_socket.send(newDatagramPacket);
-				// set time out.
+				// set time out
 				_socket.setSoTimeout(100000);
 			} catch (IOException ex) {
 				System.err.println("unable to send message to server");
 				return -1;
 			}
 			return 0;
-
 		}
 		System.err.println("unable to send message to server");
 		return -1;
@@ -108,6 +109,8 @@ public class UDPSender {
 	 * @return - the server's response or NULL if an error occured
 	 */
 	public UDPPacket receiveResponse() {
+		
+		// Create packet to receive and packet object, try to receive the response packet
 		byte[] buffer = new byte[BUFFER_SIZE];
 		DatagramPacket newDatagramPacket = new DatagramPacket(buffer, BUFFER_SIZE);
 		UDPPacket packet = null;
@@ -116,20 +119,19 @@ public class UDPSender {
 
 			//Convert the packet to string.
 			Charset charset = StandardCharsets.US_ASCII;
-			String request = charset.decode(ByteBuffer.wrap(newDatagramPacket.getData())).toString().trim();
-			String srcIP = request.substring(0, 15);
-			String srcPort = request.substring(16, 21);
-			String destIP = request.substring(22, 37);
-			String destPort = request.substring(38, 43);
+			String  request = charset.decode(ByteBuffer.wrap(newDatagramPacket.getData())).toString().trim();
+			String  srcIP = request.substring(0, 15);
+			String  srcPort = request.substring(16, 21);
+			String  destIP = request.substring(22, 37);
+			String  destPort = request.substring(38, 43);
 			_seqNum = request.substring(44, 45);
-			String payload = request.substring(48);
+			String  payload = request.substring(48);
 
-			// Create packet.
+			// Create packet object 
 			packet = new UDPPacket(destPort, destIP, srcPort, srcIP, Integer.parseInt(_seqNum));
 			packet.makePacket(payload);
 
-		} catch (SocketTimeoutException ignored)   // Socket timeout, print the error.
-		{
+		} catch (SocketTimeoutException ignored) {  // Socket timeout, print the error.
 			System.err.println("Unable to receive message from server, it's timeout: " + ignored);
 			return null;
 		} catch (IOException ex) {
@@ -141,10 +143,10 @@ public class UDPSender {
 	}
 
 	/*
-	 * Prints the response to the screen in a formatted way.
+	 * Prints the response to the screen in a formatted way
 	 *
-	 * response - the server's response as an XML formatted string
-	 *
+	 * @param response - the server's response as an XML formatted string
+  	 * @param seq - sequence number 
 	 */
 	public static void printResponse(String response , int seq) {
 		System.out.println("FROM SERVER: " + response);
@@ -153,23 +155,25 @@ public class UDPSender {
 	}
 
 	/*
-	 * Start request that get input from user.
+	 * Start request that get input from user
 	 */
 	public void StartRequest() /*throws IOException*/ {
 
-		int requestSize = _request.length(); // Size of request from user.
-		int subRequestSize = 6;		// size of sub-request for each packet.
-		int start = -1;
-		int index = 0;
-		int pos = subRequestSize;
-		int packetNum = 0;  		// Packet number
-		int seqNum = 0; 			// Sequence number of packet
-		int prevSeqNum = 1;    		// Previous sequence number of the packet
-		boolean delayed = false;  	// Boolen for delay
+		// Local variables
+		int       requestSize = _request.length(); // Size of request from user.
+		int       subRequestSize = 6;   // size of sub-request for each packet.
+		int       start = -1;
+		int       index = 0;
+		int       pos = subRequestSize;
+		int       packetNum = 0;  	// Packet number
+		int       seqNum = 0; 		// Sequence number of packet
+		int       prevSeqNum = 1;       // Previous sequence number of the packet
+		boolean   delayed = false;  	// Boolen for delay
 		UDPPacket sendPacket = null;	// sended packet
-		UDPPacket recPacket = null;		// Received packet
-		String msg = "";			//Final message
+		UDPPacket recPacket = null;	// Received packet
+		String    msg = "";		//Final message
 
+		// Loop to set header information
 		while (true) {
 
 			String req ="";
@@ -183,29 +187,29 @@ public class UDPSender {
 					subRequestSize = requestSize;
 					index += req.length();
 					start += req.length();
-				}else {
+				} else {
 					index += subRequestSize;
 					start += subRequestSize;
 				}
-			}else {
+			} else {
 				req = _request;
 				requestSize -= req.length();
 			}
-			//Execute only if packet is not sent
-			if(!delayed)
+			// Execute only if packet is not sent
+			if (!delayed)
 			{
-				// make packet.
+				// make packet
 				sendPacket = new UDPPacket(_srcPort, _srcHost, _rcvPort,
 						_rcvHost, seqNum);
 				sendPacket.makePacket(req);
 				_packetOut = new byte[BUFFER_SIZE];
 				_packetOut = sendPacket.getSegment();
-                msg += req;
+                		msg += req;
 			}
 
 			delayed = false;
 
-			// Sending the packet.
+			// Sending the packet
 			if (sendRequest() < 0) {
 				closeSocket();
 				return;
@@ -215,6 +219,7 @@ public class UDPSender {
 
 			// Receive the response
 			recPacket = receiveResponse();
+			
 			//Previous timeout checking
 			if(recPacket != null && recPacket.getSequence() == prevSeqNum && recPacket.getSegment() != sendPacket.getSegment() )
 			{
@@ -223,10 +228,10 @@ public class UDPSender {
 				System.out.println("Received: " + _ack);
 			}
 
-			// If the packet is null, it's timeout.
+			// If the packet is null, it times out
 			if(recPacket == null)
 			{
-				System.out.println("The packet number: " + packetNum + " don't receive and timeout");
+				System.out.println("The packet number: " + packetNum + " couldn't be received and timed out");
 				delayed = true;
 				packetNum -= 1;
 				seqNum = getSequenceNum(seqNum);
@@ -235,22 +240,22 @@ public class UDPSender {
 				System.out.println("Recieved " + _ack + " for packet " + packetNum);
 			}
 
-           if ((!recPacket.isLastMessage && requestSize > 0 )) {
-                prevSeqNum = seqNum;  // update previousely sequence
-                seqNum = getSequenceNum(seqNum); // update the current sequence
-		   } else {
-			   // Print the whole message
-                String output = msg.substring(0, msg.length() - 1);
-                System.err.println("Packet completely sent: " + output);
-                return;
-		   }
-        }
+           		if ((!recPacket.isLastMessage && requestSize > 0 )) {
+                		prevSeqNum = seqNum;  // update previousely sequence
+                		seqNum = getSequenceNum(seqNum); // update the current sequence
+		   	} else {
+			   	// Print the whole message
+                		String output = msg.substring(0, msg.length() - 1);
+                		System.err.println("Packet completely sent: " + output);
+                		return;
+		   	}
+        	}
 	}
 
 	/*
-	 * Flip the sequence number.
+	 * Flip the sequence number
 	 */
-	public Integer getSequenceNum(int seqNum) {
+	public Integer getSequenceNum(int seqNum) { // FLIP THIS ONE AND THE ONE BELOW IT *****************************************************
 		if (seqNum == 0) {
 			seqNum = 1;
 		}
@@ -259,14 +264,14 @@ public class UDPSender {
 	}
 
 	/*
-	 * Get request from client.
+	 * Get request from client
 	 */
-	public void SetRequest(String request) {
+	public void SetRequest(String request) { //*******************************************************************
 		_request = request;
 	}
 
 	/*
-	 * Closes an open socket.
+	 * Closes an open socket
 	 *
 	 * @return - 0, if no error; otherwise, a negative number indicating the error
 	 */
@@ -276,8 +281,15 @@ public class UDPSender {
 		return 0;
 	}
 
+	/**
+	 * Main method to test program
+	 *
+	 * @param args - user defined arguments
+	 *
+	 */
 	public static void main(String[] args) throws IOException {
-		// TODO Auto-generated method stub
+		
+		// Local variables
 		String srcPort;
 		String srcHost;
 		String rcvHost;
@@ -285,12 +297,17 @@ public class UDPSender {
 		String networkHost;
 		String networkPort;
 
+		// UDPSender object
 		UDPSender sender;
+		
+		// Ensure program is run with proper arguments
 		if (args.length != 5) {
 			System.err.println("Usage: UDPSender <sender port number> <serverName> <receiver port number>" +
 					"<networkName> <network port number\n");
 			return;
 		}
+
+		// Try to store argument values
 		try {
 			srcPort = args[0];
 			rcvHost = args[1];
@@ -303,19 +320,20 @@ public class UDPSender {
 			return;
 		}
 
-		// construct sender and sender socket
+		// Construct sender and sender socket
 		sender = new UDPSender(srcPort, rcvHost, rcvPort, networkHost, networkPort);
 		if (sender.createSocket() < 0) {
 			return;
 		}
 
+		// Formatted display to prompt user for input and send message
 		System.out.println("***************************** RDT SENDER *********************************");
 		System.out.print("Enter a request: ");
-		String request = System.console().readLine();
-		//String request = "Hello World!";
+		String request = System.console().readLine(); // read input from user
 		System.out.println("Sending the packet to: " + rcvHost + " " + rcvPort);
 		sender.SetRequest(request + ".");
-		// read input from user.
+
+		// Send the message using other methods, until user types 'done'
 		while(!Objects.equals(request, "done"))
 		{
 			sender.StartRequest();

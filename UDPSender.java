@@ -340,7 +340,7 @@ public class UDPSender {
 			System.out.print("Enter a request: ");
 			request = System.console().readLine();
 			sender.SetRequest(request + ".");
-			if("done".equals(request)) {
+			if ("done".equals(request)) {
 				if (sender.closeSocket() != 0) {
 					System.out.println("There is an error when close socket");
 				}

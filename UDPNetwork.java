@@ -6,30 +6,36 @@ import java.nio.charset.StandardCharsets;
 import java.util.Random;
 
 /**
- * Network object.
+ * This program listens for outside communications, and forwards the messages
+ * to their correct locations.
  *
  * @author Chakrya Ros
  * @author Trevor Robinson
+ * @date 8/6/2023
+ * @info Course COP5518
  */
 public class UDPNetwork {
 
 	private static final int BUFFER_SIZE = 54;
-	private DatagramSocket _socket; // the socket for communication with clients
-	private int            _port;   // the port number for communication with this server
-	private boolean        _continueService;
+	private DatagramSocket   _socket; // the socket for communication with clients
+	private int              _port;   // the port number for communication with this server
+	private boolean          _continueService; // whether or not to continue iteration
+	private Random           random = new Random(); // Random object to calculate random numbers
 
-	private Random random = new Random();
-	
+	// Variables to hold values provided by command-line arguments
 	private int _lostPercent;
 	private int _delayedPercent;
 	private int _errorPercent;
-
-	byte[] _packetIn;
-
-	byte[] _packetOut;
+	byte[]      _packetIn;
+	byte[]      _packetOut;
 
 	/**
 	 * Constructs a UDPserver object.
+  	 *
+    	 * @param portNum - network port number
+      	 * @param lostPercent - percent chance to drop a packet
+	 * @param delayedPercent - percent chance to delay packet transmission
+	 * @param errorPercent - percent chance to corrupt a packet
 	 */
 	public UDPNetwork (int portNum, int lostPercent, int delayedPercent, int errorPercent) {
 		_port = portNum;
@@ -45,6 +51,7 @@ public class UDPNetwork {
 	 */
 	public int createSocket() {
 		try {
+			// Try opening a new socket with the provided port number
 			_socket = new DatagramSocket(_port);
 		} catch (SocketException ex) {
 			System.err.println("unable to create and bind socket");
@@ -54,6 +61,11 @@ public class UDPNetwork {
 		return 0;
 	}
 
+	/**
+ 	 * Runs the program to retrieve necessary information and forward
+    	 * the received packet.
+      	 *
+ 	 */
 	public void run()
 	{
 		// run server until gracefully shut down
@@ -66,44 +78,40 @@ public class UDPNetwork {
 			String request = charset.decode(ByteBuffer.wrap(newDatagramPacket.getData()))
 					.toString(); 		//Convert the packet to string.
 
-			System.out.println("sender IP: " + newDatagramPacket.getAddress().getHostAddress() +
+			System.out.println("Sender IP: " + newDatagramPacket.getAddress().getHostAddress() +
 					" Port: " + newDatagramPacket.getPort());
 			totalReceived += 1;
 			System.out.println("Receiver Packet: " + totalReceived);
 
-			/*String request = new String (newDatagramPacket.getData()).trim();
-			String segment = request.substring(44);
-			System.out.println ("sender IP: " + newDatagramPacket.getAddress().getHostAddress());
-			System.out.println ("sender request: " + segment);
-			System.out.println ("sender request: " + request);*/
-
+			// Stop iterations if user is done
 			if (request.equals("<shutdown/>")) {
 				_continueService = false;
 			}
 
+			// If user has a request
 			if (request != null) {
-
+				// Extract necessary information from packet
 				String srcIP = request.substring(0, 15);
 				String srcPort = request.substring(16, 21);
 				String destIP = request.substring(22, 37);
 				String destPort = request.substring(38, 43);
-				int rcvSeq = Integer.parseInt(request.substring(44, 45));
+				int    rcvSeq = Integer.parseInt(request.substring(44, 45));
 				String checkSum =  (request.substring(45, 48));
 				String payload = request.substring(48);
 
-				// Create the packet that receive.
+				// Create the packet to send to destination with information provided
 				UDPPacket rcvPacket = new UDPPacket(srcPort, srcIP, destPort, destIP, rcvSeq);
 				rcvPacket.makePacket(payload);
 				_packetIn = new byte[BUFFER_SIZE];
 				_packetIn = rcvPacket.getSegment();
 
-				// Send the response.
+				// Send the packet to correct destination
 				sendResponse(_packetIn, destIP, Integer.parseInt(destPort));
 				totalSended  += 1;
-				System.out.println("Packets Delayed:\t" + _delayedPercent  + "\t" +
-						"Packets Corrupt:\t" + _errorPercent + "\t" +
-						"Packets Lost:\t" + _lostPercent + "\t" +
-						"Sender packets:\t" + totalSended);
+				System.out.println("Packets Delayed:\t" + _delayedPercent  + "%\t" +
+						   "Packets Corrupt:\t" + _errorPercent + "%\t" +
+						   "Packets Lost:" + _lostPercent + "%\t" +
+						   "Sender packets:\t" + totalSended);
 			}
 			else {
 				System.err.println ("incorrect response from server");
@@ -122,16 +130,24 @@ public class UDPNetwork {
 	 * @return - 0, if no error; otherwise, a negative number indicating the error
 	 */
 	public int sendResponse(byte[] packet, String hostAddr, int port) {
-		
+
+		// Create datagram packet with provided parameters
+		DatagramPacket newDatagramPacket = createDatagramPacket(packet, hostAddr, port);
+
+		// Calculate random number 
 		int rand = random.nextInt(100);
 
 		// Simulate packet loss
 
 		// Simulate corrupt packet
-		
-		DatagramPacket newDatagramPacket = createDatagramPacket(packet, hostAddr, port);
+
+		// If the packet has request information
 		if (newDatagramPacket != null) {
-			
+
+			/* 
+   			 * If the random number is within the range provided by the user for delay,
+			 * delay the transmission using a separate thread, then send to destination
+    			 */
 			if (rand < _delayedPercent) {
 				new Thread(() -> {
                     			try {
@@ -144,7 +160,8 @@ public class UDPNetwork {
                 		}).start();
 				return 0;
 			}
-			
+
+			// Normal transmission of packet if random number doesn't hit
 			try {
 				_socket.send(newDatagramPacket);
 			} catch (IOException ex) {
@@ -165,8 +182,12 @@ public class UDPNetwork {
 	 * @return - the datagram containing the client's request or NULL if an error occured
 	 */
 	public DatagramPacket receiveRequest() {
+
+		// Create new packet with buffer
 		byte[] buffer = new byte[BUFFER_SIZE];
 		DatagramPacket newDatagramPacket = new DatagramPacket(buffer, BUFFER_SIZE);
+		
+		// Receive new packet and store in created packet
 		try {
 			_socket.receive(newDatagramPacket);
 		} catch (IOException ex) {
@@ -174,6 +195,7 @@ public class UDPNetwork {
 			return null;
 		}
 
+		// Return the received packet
 		return newDatagramPacket;
 	}
 
@@ -199,23 +221,29 @@ public class UDPNetwork {
 		return 0;
 	}
 
-
+	/**
+ 	 * Main method to obtain args and call methods to receive/send packets
+   	 *
+      	 * @param args - arguments provided by user for port and simulation
+     	 */
 	public static void main(String[] args) {
-		// TODO Auto-generated method stub
+		
+		// Variables to store simulation data 
 		int lostPercent;
 		int delayedPercent;
 		int errorPercent;
+		int portNum;
 
+		// Network object
 		UDPNetwork  server;
-		String    serverName;
-		String    req;
 
+		// Ensure user runs program with proper arguments
 		if (args.length != 4) {
 			System.err.println("Usage: UDPNetwork <port number>  <lostPercent> <delayedPercent> <errorPercent>\n");
 			return;
 		}
 
-		int portNum;
+		// Try to store provided arguments and print provided port number
 		try {
 			portNum = Integer.parseInt(args[0]);
 			lostPercent = Integer.parseInt(args[1]);
@@ -227,12 +255,13 @@ public class UDPNetwork {
 			return;
 		}
 
-		// construct client and client socket
+		// Construct network and network socket
 		server = new UDPNetwork (portNum, lostPercent, delayedPercent, errorPercent);
 		if (server.createSocket() < 0) {
 			return;
 		}
 
+		// Run the program and close the socket when finished
 		server.run();
 		server.closeSocket();
 	}

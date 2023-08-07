@@ -130,7 +130,7 @@ public class UDPNetwork {
 		// Create datagram packet with provided parameters
 		DatagramPacket newDatagramPacket = createDatagramPacket(packet, hostAddr, port);
 
-		// Calculate random number 
+		// Calculate random number to use when determining if a packet is lost, delayed, or corrupted
 		int rand = random.nextInt(100);
 
 		// Simulate packet loss
@@ -140,6 +140,13 @@ public class UDPNetwork {
 		}
 
 		// Simulate corrupt packet
+		if (rand < _errorPercent) {
+			
+			// Code to corrupt packet
+			// ----- put code to corrupt here -----
+
+			System.out.println("Packet has been corrupted.");
+		}
 
 		// If the packet has request information
 		if (newDatagramPacket != null) {

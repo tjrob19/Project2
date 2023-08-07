@@ -57,7 +57,7 @@ public class UDPReceiver {
 		_continueService = true;
 		int totalReceived = 0;
 		String msg = "";
-		int prevSeq = 1;
+		boolean corrupted = false;
 		System.out.println("Waiting... connect sender.......");
 
 		// While the user is still sending packets
@@ -100,33 +100,35 @@ public class UDPReceiver {
 					System.out.println("******** There is a duplicate packet **********");
 				}
 
+				msg += payload;
+				totalReceived += 1;
+				seqNum = rcvSeq;
 				// Check if the packet is corrupt
-				/*if(checkSum != rcvCheckSum)
+				if(!checkSum.equals(rcvCheckSum))
 				{
 					System.out.println("Packet: " + totalReceived + " received corrupted");
 					System.out.println("Resend the packet " + (totalReceived-1));
 					totalReceived -= 1;
+					corrupted = true;
 					if(rcvSeq == 0){
 						seqNum = 1;
 					}else{
 						seqNum = 0;
 					}
-				}*/
+				}
 
-				// Create packet to send out
-				UDPPacket packet = new UDPPacket(destPort, destIP, srcPort, srcIP, rcvSeq);
-				packet.makePacket(payload);
-				_packetOut = new byte[BUFFER_SIZE];
-				_packetOut = packet.getSegment();
+				if(!corrupted)
+				{
+					// Create packet to send out
+					UDPPacket packet = new UDPPacket(destPort, destIP, srcPort, srcIP, seqNum);
+					packet.makePacket(payload);
+					_packetOut = new byte[BUFFER_SIZE];
+					_packetOut = packet.getSegment();
+					// Send the response
+					sendResponse(_packetOut, newDatagramPacket.getAddress().getHostName(),
+							newDatagramPacket.getPort());
+				}
 
-				// Send the response
-				sendResponse(_packetOut, newDatagramPacket.getAddress().getHostName(),
-						newDatagramPacket.getPort());
-
-				seqNum = rcvSeq;
-				msg += payload;
-				totalReceived += 1;
-				
 				// Print the full message when the last packet receive
 				if (rcvPacket.isLastMessage) //&& rcvSeq == seqNum)
 				{
@@ -141,7 +143,6 @@ public class UDPReceiver {
 					System.out.println("Received packet: " + totalReceived  + ", Seq: " + rcvPacket.getSequence() + ", "  + ack + ", Message " + payload);
 					System.out.println("Sending ACK for : " + totalReceived);
 				}
-
 			}
 			else {
 				System.err.println ("incorrect response from server");

@@ -27,7 +27,6 @@ public class UDPNetwork {
 	private int _delayedPercent;
 	private int _errorPercent;
 	byte[]      _packetIn;
-	byte[]      _packetOut;
 
 	/**
 	 * Constructs a UDPserver object.
@@ -71,7 +70,6 @@ public class UDPNetwork {
 		// run server until gracefully shut down
 		_continueService = true;
 		int totalReceived = 0;
-		int totalSended = 0;
 		while (_continueService) {
 			DatagramPacket newDatagramPacket = receiveRequest();  //receive the packet
 			Charset charset = StandardCharsets.US_ASCII;
@@ -105,9 +103,43 @@ public class UDPNetwork {
 				_packetIn = new byte[BUFFER_SIZE];
 				_packetIn = rcvPacket.getSegment();
 
-				// Send the packet to correct destination
-				sendResponse(_packetIn, destIP, Integer.parseInt(destPort));
-				totalSended  += 1;
+				// Calculate random number
+				int rand = random.nextInt(100);
+				// Simulate packet delayed, corrupt packet and packet loss
+				if (rand <= _delayedPercent) { // Delayed
+					/*
+					 * If the random number is within the range provided by the user for delay,
+					 * delay the transmission using a separate thread, then send to destination
+					 */
+					int finalTotalReceived = totalReceived;
+					new Thread(() -> {
+						try {
+							Thread.sleep((long) ((1.5 + random.nextFloat() * 0.5) * 10000)); // Delay between 1.5 and 2 times 100 ms
+							System.out.println("Packet delayed!");
+							sendResponse(_packetIn, destIP, Integer.parseInt(destPort));
+							System.out.println("Received: Packet" + finalTotalReceived + ", SEND");
+						} catch (InterruptedException ex) {
+							System.err.println("Unable to send delayed message to server");
+						}
+					}).start();
+				}else if(rand >= _delayedPercent && rand <= _errorPercent) //Corrupt
+				{
+					String corruptPayload = "C" + payload.substring(1, payload.length()-2); //Add the corrupt to payload
+					rcvPacket.makePacket(corruptPayload);
+					System.out.println("Received: Packet" + totalReceived + ", CORRUPT");
+					_packetIn = new byte[BUFFER_SIZE];
+					_packetIn = rcvPacket.getSegment();
+					sendResponse(_packetIn, destIP, Integer.parseInt(destPort));
+				} else if (rand >= _errorPercent && rand <= _lostPercent) // Drop Packet
+				{
+					System.err.println("Lost ACK");
+					System.out.println("Received: Packet" + totalReceived + ", DROP");
+					totalReceived -= 1;
+				}else{
+					// Send the packet to correct destination
+					sendResponse(_packetIn, destIP, Integer.parseInt(destPort));
+					System.out.println("Received: Packet" + totalReceived + ", SEND");
+				}
 			}
 			else {
 				System.err.println ("incorrect response from server");
@@ -129,57 +161,16 @@ public class UDPNetwork {
 
 		// Create datagram packet with provided parameters
 		DatagramPacket newDatagramPacket = createDatagramPacket(packet, hostAddr, port);
-
-		// Calculate random number to use when determining if a packet is lost, delayed, or corrupted
-		int rand = random.nextInt(100);
-
-		// Simulate packet loss
-		if (rand < _lostPercent) {
-			System.out.println("Packet has been lost.");
-			return 0;
-		}
-
-		// Simulate corrupt packet
-		if (rand < _errorPercent) {
-			
-			// Code to corrupt packet
-			// ----- put code to corrupt here -----
-
-			System.out.println("Packet has been corrupted.");
-		}
-
-		// If the packet has request information
 		if (newDatagramPacket != null) {
-
-			/* 
-   			 * If the random number is within the range provided by the user for delay,
-			 * delay the transmission using a separate thread, then send to destination
-    			 */
-			if (rand < _delayedPercent) {
-				new Thread(() -> {
-                    			try {
-                        			Thread.sleep((long) ((1.5 + random.nextFloat() * 0.5) * 100)); // Delay between 1.5 and 2 times 100 ms
-                        			_socket.send(newDatagramPacket);
-                        			System.out.println("Packet delayed!");
-                    			} catch (InterruptedException | IOException ex) {
-                        			System.err.println("Unable to send delayed message to server");
-                    			}
-                		}).start();
-				return 0;
-			}
-
-			// Normal transmission of packet if random number doesn't hit
 			try {
 				_socket.send(newDatagramPacket);
 			} catch (IOException ex) {
 				System.err.println("unable to send message to server");
 				return -1;
 			}
-
 			return 0;
 		}
-
-		System.err.println("unable to create message");
+		System.err.println("unable to send message to server");
 		return -1;
 	}
 
@@ -271,7 +262,7 @@ public class UDPNetwork {
 		// Print percentages provided by user
 		System.out.println("Packets Delayed: " + delayedPercent  + "%\t" +
 				   "Packets Corrupt: " + errorPercent + "%\t" +
-				   "Packets Lost: " + lostPercent + "%");
+				   "Packets Lost: " + lostPercent);
 
 		// Run the program and close the socket when finished
 		server.run();

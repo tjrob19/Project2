@@ -43,11 +43,15 @@ public class UDPPacket {
         return _seqNum;
     }
 
+    // Get the sequence
+    public String getPayload(){
+        return _request;
+    }
+
     // Get the segment
     public byte[] getSegment(){
         return _segment;
     }
-
     /*
      * Generate checksum
      *

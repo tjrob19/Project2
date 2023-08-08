@@ -76,6 +76,7 @@ public class UDPNetwork {
 			String request = charset.decode(ByteBuffer.wrap(newDatagramPacket.getData()))
 					.toString(); 		//Convert the packet to string.
 
+			System.out.println("----------------------------------------------");
 			System.out.println("Sender IP: " + newDatagramPacket.getAddress().getHostAddress() +
 					" Port: " + newDatagramPacket.getPort());
 			totalReceived += 1;
@@ -120,7 +121,8 @@ public class UDPNetwork {
 							Thread.sleep((long) delayedTime); // Delay between 1.5 and 2 times 10000 ms
 							System.out.println("Packet delayed!");
 							sendResponse(_packetIn, destIP, Integer.parseInt(destPort));
-							System.out.println("Received: Packet" + finalTotalReceived + ", SEND");
+							System.out.println("Received: Packet " + finalTotalReceived + ", SEND");
+							System.out.println("----------------------------------------------");
 						} catch (InterruptedException ex) {
 							System.err.println("Unable to send delayed message to server");
 						}
@@ -129,19 +131,19 @@ public class UDPNetwork {
 				{
 					String corruptPayload = "0000"; //Add the corrupt to payload
 					rcvPacket.makePacket(corruptPayload);
-					System.out.println("Received: Packet" + totalReceived + ", CORRUPT");
+					System.out.println("Received: Packet" + totalReceived + ", CORRUPTED");
 					byte[] packetC = new byte[BUFFER_SIZE];
 					packetC = rcvPacket.getSegment();
 					sendResponse(packetC, destIP, Integer.parseInt(destPort));
 				} else if (rand <= _lostPercent) // Drop Packet
 				{
 					System.err.println("Lost ACK");
-					System.out.println("Received: Packet" + totalReceived + ", DROP");
+					System.out.println("Received: Packet" + totalReceived + ", DROPPED");
 					totalReceived -= 1;
 				}else{
 					// Send the packet to correct destination
 					sendResponse(_packetIn, destIP, Integer.parseInt(destPort));
-					System.out.println("Received: Packet" + totalReceived + ", SEND");
+					System.out.println("Received: Packet" + totalReceived + ", SENT");
 				}
 			}
 			else {
@@ -263,8 +265,8 @@ public class UDPNetwork {
 		}
 
 		// Print percentages provided by user
-		System.out.println("Packets Delayed: " + delayedPercent  + "%\t" +
-				   "Packets Corrupt: " + errorPercent + "%\t" +
+		System.out.println("Packets Corrupt: " + errorPercent + "%\t" +
+				   "Packets Delayed: " + delayedPercent  + "%\t" +
 				   "Packets Lost: " + lostPercent);
 
 		// Run the program and close the socket when finished

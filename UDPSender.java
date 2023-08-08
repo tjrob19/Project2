@@ -27,6 +27,7 @@ public class UDPSender {
 	private String _seqNum;
 
 	private String _ack;
+	DatagramPacket _newDatagramPacket;
 
 	/**
 	 * Constructs a UDPSender object.
@@ -61,25 +62,19 @@ public class UDPSender {
 	 *
 	 * @return - 0, if no error; otherwise, a negative number indicating the error
 	 */
-	public int sendRequest() throws IOException {
+	public int sendRequest(){
 
-		DatagramPacket newDatagramPacket = createDatagramPacket(_packetOut, _networkHost, _networkPort);
-		if (newDatagramPacket != null) {
+		_newDatagramPacket = createDatagramPacket(_packetOut, _networkHost, _networkPort);
+		if (_newDatagramPacket != null) {
 			try {
-				_socket.send(newDatagramPacket);
+				_socket.send(_newDatagramPacket);
 				// set time out.
-				_socket.setSoTimeout(100000);
-				_socket.getSoTimeout();
-			} catch (SocketTimeoutException e) {
-				// connection timed out...let's try again
-				_socket.send(newDatagramPacket);
 				_socket.setSoTimeout(10000);
-			}catch (IOException ex) {
+			} catch (IOException ex) {
 				System.err.println("unable to send message to server");
 				return -1;
 			}
 			return 0;
-
 		}
 		System.err.println("unable to send message to server");
 		return -1;
@@ -103,7 +98,6 @@ public class UDPSender {
 			System.err.println ("invalid host address");
 			return null;
 		}
-
 		return new DatagramPacket (packet, BUFFER_SIZE, hostAddr, port);
 	}
 
@@ -112,7 +106,7 @@ public class UDPSender {
 	 *
 	 * @return - the server's response or NULL if an error occured
 	 */
-	public UDPPacket receiveResponse() {
+	public UDPPacket receiveResponse() throws IOException {
 		byte[] buffer = new byte[BUFFER_SIZE];
 		DatagramPacket newDatagramPacket = new DatagramPacket(buffer, BUFFER_SIZE);
 		UDPPacket packet = null;
@@ -133,11 +127,11 @@ public class UDPSender {
 			packet = new UDPPacket(destPort, destIP, srcPort, srcIP, Integer.parseInt(_seqNum));
 			packet.makePacket(payload);
 
-		} catch (SocketTimeoutException ignored)   // Socket timeout, print the error.
+		} catch (SocketTimeoutException e)   // Socket timeout,
 		{
-			System.err.println("Unable to receive message from server, it's timeout: " + ignored);
+			System.err.println("Unable to receive message from server, it's timeout: " + e);
 			return null;
-		} catch (IOException ex) {
+		}catch (IOException ex) {
 			System.err.println("Unable to receive message from server: " + ex);
 			return null;
 		}
@@ -216,13 +210,26 @@ public class UDPSender {
 				return;
 			}
 			packetNum += 1; 		//increment the packet number
-			System.out.println("Waiting for packet " + packetNum + " to response.");
 
 			// Receive the response
 			rcvPacket = receiveResponse();
+
+			//Time out, re-send packet
+			while(rcvPacket == null)
+			{
+				System.out.println("The packet number: " + packetNum + " Timeout, re-sending");
+				packetNum -= 1;
+				if (sendRequest() < 0) {
+					return;
+				}
+				rcvPacket = receiveResponse();
+
+			}
 			String rcvCheckSum = rcvPacket.generateChecksum(rcvPacket.getPayload());
 			String sendCheckSum = sendPacket.generateChecksum(sendPacket.getPayload());
 			_ack = rcvPacket.validateMessage();
+
+
 
 			//Previous timeout checking
 			if(rcvPacket != null && rcvPacket.getSequence() == prevSeqNum && rcvPacket.getSegment() != sendPacket.getSegment() )
@@ -234,15 +241,14 @@ public class UDPSender {
 
 			// If packet is corrupt, resend the packet.
             if (!rcvCheckSum.equals(sendCheckSum)) {
-                if (rcvPacket.getSegment() == sendPacket.getSegment()) {
-                    System.out.println("The packet number: " + packetNum + " re-sending");
+                if (Objects.equals(rcvPacket.getSequence(), sendPacket.getSequence())) {
+                    System.out.println("The packet number: " + packetNum + " CORRUPT, re-sending");
+					packetNum -= 1;
                     // re-sending the packet.
                     if (sendRequest() < 0) {
-                        closeSocket();
                         return;
                     }
                 } else {
-
                     System.out.println("Recieved " + _ack + " for packet " + packetNum);
                 }
             } else {
@@ -326,7 +332,6 @@ public class UDPSender {
 		System.out.println("***************************** RDT SENDER *********************************");
 		System.out.print("Enter a request: ");
 		String request = System.console().readLine();
-		//String request = "Hello World!";
 		System.out.println("Sending the packet to: " + rcvHost + " " + rcvPort);
 		sender.SetRequest(request + ".");
 		// read input from user.

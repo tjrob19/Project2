@@ -1,9 +1,5 @@
 import java.io.IOException;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-import java.net.InetAddress;
-import java.net.SocketException;
-import java.net.UnknownHostException;
+import java.net.*;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -22,7 +18,6 @@ public class UDPReceiver {
 	private static final int BUFFER_SIZE = 54;
 	private DatagramSocket   _socket;  // the socket for communication with clients
 	private int              _rcvPort; // the port number for communication with this server
-	private String           _rcvHost; // the receiver host name
 	private boolean          _continueService; // whether to continue iterations
 	int seqNum = 0;    // sequence number
 	byte[] _packetIn;  // packet received
@@ -97,38 +92,34 @@ public class UDPReceiver {
 				if(rcvSeq == seqNum && totalReceived != 0)
 				{
 					totalReceived -= 1;
+					corrupted = true;
 					System.out.println("******** There is a duplicate packet **********");
 				}
 
-				msg += payload;
 				totalReceived += 1;
 				seqNum = rcvSeq;
 				// Check if the packet is corrupt
 				if(!checkSum.equals(rcvCheckSum))
 				{
 					System.out.println("Packet: " + totalReceived + " received corrupted");
-					System.out.println("Resend the packet " + (totalReceived-1));
 					totalReceived -= 1;
 					corrupted = true;
-					if(rcvSeq == 0){
-						seqNum = 1;
-					}else{
-						seqNum = 0;
-					}
 				}
 
+				// if not corrupt
 				if(!corrupted)
 				{
-					// Create packet to send out
-					UDPPacket packet = new UDPPacket(destPort, destIP, srcPort, srcIP, seqNum);
-					packet.makePacket(payload);
-					_packetOut = new byte[BUFFER_SIZE];
-					_packetOut = packet.getSegment();
-					// Send the response
-					sendResponse(_packetOut, newDatagramPacket.getAddress().getHostName(),
-							newDatagramPacket.getPort());
+					msg += payload;
 				}
 
+				// Create packet to send out
+				UDPPacket packet = new UDPPacket(destPort, destIP, srcPort, srcIP, seqNum);
+				packet.makePacket(payload);
+				_packetOut = new byte[BUFFER_SIZE];
+				_packetOut = packet.getSegment();
+				// Send the response
+				sendResponse(_packetOut, newDatagramPacket.getAddress().getHostName(),
+						newDatagramPacket.getPort());
 				// Print the full message when the last packet receive
 				if (rcvPacket.isLastMessage) //&& rcvSeq == seqNum)
 				{
@@ -139,7 +130,7 @@ public class UDPReceiver {
 					// Clear the old message
 					msg = "";
 					totalReceived = 0;
-				} else {
+				}else{
 					System.out.println("Received packet: " + totalReceived  + ", Seq: " + rcvPacket.getSequence() + ", "  + ack + ", Message " + payload);
 					System.out.println("Sending ACK for : " + totalReceived);
 				}
@@ -192,7 +183,10 @@ public class UDPReceiver {
 		DatagramPacket newDatagramPacket = new DatagramPacket(buffer, BUFFER_SIZE);
 		try {
 			_socket.receive(newDatagramPacket);
-		} catch (IOException ex) {
+		} catch (SocketTimeoutException ignored)   // Socket timeout, print the error.
+		{
+			System.err.println("Unable to receive message from server, it's timeout.");
+		}catch (IOException ex) {
 			System.err.println("unable to receive message from server");
 			return null;
 		}
@@ -205,10 +199,8 @@ public class UDPReceiver {
 	 *
 	 * @return - 0, if no error; otherwise, a negative number indicating the error
 	 */
-	public int closeSocket() {
+	public void closeSocket() {
 		_socket.close();
-		
-		return 0;
 	}
 
 	/**

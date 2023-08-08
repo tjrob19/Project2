@@ -114,7 +114,7 @@ public class UDPNetwork {
 					int finalTotalReceived = totalReceived;
 					new Thread(() -> {
 						try {
-							Thread.sleep((long) ((1.5 + random.nextFloat() * 0.5) * 10000)); // Delay between 1.5 and 2 times 100 ms
+							Thread.sleep((long) ((1.5 + random.nextFloat() * 0.5) * 10000)); // Delay between 1.5 and 2 times 10000 ms
 							System.out.println("Packet delayed!");
 							sendResponse(_packetIn, destIP, Integer.parseInt(destPort));
 							System.out.println("Received: Packet" + finalTotalReceived + ", SEND");
@@ -122,15 +122,15 @@ public class UDPNetwork {
 							System.err.println("Unable to send delayed message to server");
 						}
 					}).start();
-				}else if(rand >= _delayedPercent && rand <= _errorPercent) //Corrupt
+				}else if(rand <= _errorPercent) //Corrupt
 				{
-					String corruptPayload = "C" + payload.substring(1, payload.length()-2); //Add the corrupt to payload
+					String corruptPayload = "0000"; //Add the corrupt to payload
 					rcvPacket.makePacket(corruptPayload);
 					System.out.println("Received: Packet" + totalReceived + ", CORRUPT");
 					_packetIn = new byte[BUFFER_SIZE];
 					_packetIn = rcvPacket.getSegment();
 					sendResponse(_packetIn, destIP, Integer.parseInt(destPort));
-				} else if (rand >= _errorPercent && rand <= _lostPercent) // Drop Packet
+				} else if (rand <= _lostPercent) // Drop Packet
 				{
 					System.err.println("Lost ACK");
 					System.out.println("Received: Packet" + totalReceived + ", DROP");

@@ -67,6 +67,9 @@ public class UDPNetwork {
  	 */
 	public void run()
 	{
+		int delayTotal = 0;
+		int errorTotal = 0;
+		int lostTotal = 0;
 		// run server until gracefully shut down
 		_continueService = true;
 		int totalReceived = 0;
@@ -97,6 +100,7 @@ public class UDPNetwork {
 				int    rcvSeq = Integer.parseInt(request.substring(44, 45));
 				String checkSum =  (request.substring(45, 48));
 				String payload = request.substring(48);
+				
 
 				// Create the packet to send to destination with information provided
 				UDPPacket rcvPacket = new UDPPacket(srcPort, srcIP, destPort, destIP, rcvSeq);
@@ -108,20 +112,25 @@ public class UDPNetwork {
 				double random = Math.random();
 				double x = random*100;
 				int rand = (int)x + 1; //Add 1 to change the range to 1 - 100
-				// Simulate packet delayed, corrupt packet and packet loss
+				
+				/*
+				 * If the random number is within the range provided by the user for delay,
+				 * delay the transmission using a separate thread, then send to destination
+				 *
+				 * Simulate packet delayed, corrupt packet and packet loss
+				 */
 				if (rand <= _delayedPercent) { // Delayed
-					/*
-					 * If the random number is within the range provided by the user for delay,
-					 * delay the transmission using a separate thread, then send to destination
-					 */
+					
+					delayTotal++;
 					int finalTotalReceived = totalReceived;
-					double delayedTime = ((10000 * 1.5) + (10000 * 2.0)) / 2;
+					double delayedTime = ((5000 * 1.5) + (5000 * 2.0)) / 2;
                     new Thread(() -> {
 						try {
-							Thread.sleep((long) delayedTime); // Delay between 1.5 and 2 times 10000 ms
+							Thread.sleep((long) delayedTime); // Put thread to sleep for delayedTime
 							System.out.println("Packet delayed!");
 							sendResponse(_packetIn, destIP, Integer.parseInt(destPort));
-							System.out.println("Received: Packet " + finalTotalReceived + ", SEND");
+							System.out.println("Received: Packet " + finalTotalReceived + ", SENDING");
+							
 							System.out.println("----------------------------------------------");
 						} catch (InterruptedException ex) {
 							System.err.println("Unable to send delayed message to server");
@@ -129,26 +138,32 @@ public class UDPNetwork {
 					}).start();
 				}else if(rand <= _errorPercent) //Corrupt
 				{
+					errorTotal++;
 					String corruptPayload = "0000"; //Add the corrupt to payload
 					rcvPacket.makePacket(corruptPayload);
-					System.out.println("Received: Packet" + totalReceived + ", CORRUPTED");
+					System.out.println("Received: Packet " + totalReceived + ", CORRUPTED");
 					byte[] packetC = new byte[BUFFER_SIZE];
 					packetC = rcvPacket.getSegment();
 					sendResponse(packetC, destIP, Integer.parseInt(destPort));
 				} else if (rand <= _lostPercent) // Drop Packet
 				{
+					lostTotal++;
 					System.err.println("Lost ACK");
 					System.out.println("Received: Packet" + totalReceived + ", DROPPED");
 					totalReceived -= 1;
 				}else{
 					// Send the packet to correct destination
 					sendResponse(_packetIn, destIP, Integer.parseInt(destPort));
-					System.out.println("Received: Packet" + totalReceived + ", SENT");
+					System.out.println("Received: Packet" + totalReceived + ", SEND");
 				}
 			}
 			else {
 				System.err.println ("incorrect response from server");
 			}
+			
+			System.out.println("Total packets delayed: " + delayTotal);
+			System.out.println("Total packets lost: " + lostTotal);
+			System.out.println("Total packets corrupted: " + errorTotal);
 		}
 	}
 
@@ -265,9 +280,9 @@ public class UDPNetwork {
 		}
 
 		// Print percentages provided by user
-		System.out.println("Packets Corrupt: " + errorPercent + "%\t" +
-				   "Packets Delayed: " + delayedPercent  + "%\t" +
-				   "Packets Lost: " + lostPercent);
+		System.out.println("Packets Lost: " + lostPercent + "%\t" +
+						   "Packets Delayed: " + delayedPercent  + "%\t" +
+						   "Packets Corrupt: " + errorPercent + "%");
 
 		// Run the program and close the socket when finished
 		server.run();

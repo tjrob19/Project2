@@ -94,6 +94,7 @@ public class UDPReceiver {
 				{
 					totalReceived -= 1;
 					System.out.println("******** There is a duplicate packet **********");
+					payload = ""; // Does not print payload if it is a duplicate
 				}
 
 				totalReceived += 1;
@@ -127,14 +128,14 @@ public class UDPReceiver {
 				{
 					String output = msg;
 					System.out.println("--------------------------------------------------");
-					System.out.println("Packet completely received: " + output);
+					System.out.println("Packet completely received: " + output + "\n");
 
 					// Clear the old message
 					msg = "";
 					totalReceived = 0;
-				}else{
-					System.out.println("Received packet: " + totalReceived  + ", Seq: " + rcvPacket.getSequence() + ", "  + ack + ", Message " + payload);
-					System.out.println("Sending ACK for : " + totalReceived);
+				} else{
+					System.out.println("Received packet: " + totalReceived  + ", Seq: " + rcvPacket.getSequence() + ", "  + ack + ", Message: " + payload);
+					System.out.println("Sending ACK for: " + totalReceived);
 				}
 
 			}

@@ -3,6 +3,7 @@ import java.net.*;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.Objects;
 
 /**
  * This server program listens for packets being sent over the network
@@ -92,7 +93,6 @@ public class UDPReceiver {
 				if(rcvSeq == seqNum && totalReceived != 0)
 				{
 					totalReceived -= 1;
-					corrupted = true;
 					System.out.println("******** There is a duplicate packet **********");
 				}
 
@@ -107,9 +107,11 @@ public class UDPReceiver {
 				}
 
 				// if not corrupt
-				if(!corrupted)
-				{
-					msg += payload;
+				if(!corrupted){
+					if(!Objects.equals(payload, "0000"))
+					{
+						msg += payload;
+					}
 				}
 
 				// Create packet to send out
@@ -123,7 +125,7 @@ public class UDPReceiver {
 				// Print the full message when the last packet receive
 				if (rcvPacket.isLastMessage) //&& rcvSeq == seqNum)
 				{
-					String output = msg.substring(0, msg.length()-1);
+					String output = msg;
 					System.out.println("--------------------------------------------------");
 					System.out.println("Packet completely received: " + output);
 
@@ -134,6 +136,7 @@ public class UDPReceiver {
 					System.out.println("Received packet: " + totalReceived  + ", Seq: " + rcvPacket.getSequence() + ", "  + ack + ", Message " + payload);
 					System.out.println("Sending ACK for : " + totalReceived);
 				}
+
 			}
 			else {
 				System.err.println ("incorrect response from server");

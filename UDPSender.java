@@ -112,10 +112,9 @@ public class UDPSender {
 		UDPPacket packet = null;
 		try {
 			_socket.receive(newDatagramPacket);
-
 			//Convert the packet to string.
 			Charset charset = StandardCharsets.US_ASCII;
-			String request = charset.decode(ByteBuffer.wrap(newDatagramPacket.getData())).toString().trim();
+			String request = charset.decode(ByteBuffer.wrap(newDatagramPacket.getData())).toString();
 			String srcIP = request.substring(0, 15);
 			String srcPort = request.substring(16, 21);
 			String destIP = request.substring(22, 37);
@@ -129,7 +128,7 @@ public class UDPSender {
 
 		} catch (SocketTimeoutException e)   // Socket timeout,
 		{
-			System.err.println("Unable to receive message from server, it's timeout: " + e);
+			System.err.println("Unable to receive message from server, it's timeout.");
 			return null;
 		}catch (IOException ex) {
 			System.err.println("Unable to receive message from server: " + ex);
@@ -223,21 +222,10 @@ public class UDPSender {
 					return;
 				}
 				rcvPacket = receiveResponse();
-
 			}
 			String rcvCheckSum = rcvPacket.generateChecksum(rcvPacket.getPayload());
 			String sendCheckSum = sendPacket.generateChecksum(sendPacket.getPayload());
 			_ack = rcvPacket.validateMessage();
-
-
-
-			//Previous timeout checking
-			if(rcvPacket != null && rcvPacket.getSequence() == prevSeqNum && rcvPacket.getSegment() != sendPacket.getSegment() )
-			{
-				rcvPacket = receiveResponse();
-				_ack = rcvPacket.validateMessage();
-				System.out.println("Received: " + _ack);
-			}
 
 			// If packet is corrupt, resend the packet.
             if (!rcvCheckSum.equals(sendCheckSum)) {
@@ -332,6 +320,7 @@ public class UDPSender {
 		System.out.println("***************************** RDT SENDER *********************************");
 		System.out.print("Enter a request: ");
 		String request = System.console().readLine();
+		//String request = "Hello world!";
 		System.out.println("Sending the packet to: " + rcvHost + " " + rcvPort);
 		sender.SetRequest(request + ".");
 		// read input from user.

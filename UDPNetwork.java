@@ -18,14 +18,14 @@ public class UDPNetwork {
 
 	private static final int BUFFER_SIZE = 54;
 	private DatagramSocket   _socket; // the socket for communication with clients
-	private int              _port;   // the port number for communication with this server
+	private final int              _port;   // the port number for communication with this server
 	private boolean          _continueService; // whether or not to continue iteration
-	private Random           random = new Random(); // Random object to calculate random numbers
+	private final Random           random = new Random(); // Random object to calculate random numbers
 
 	// Variables to hold values provided by command-line arguments
-	private int _lostPercent;
-	private int _delayedPercent;
-	private int _errorPercent;
+	private final int _lostPercent;
+	private final int _delayedPercent;
+	private final int _errorPercent;
 	byte[]      _packetIn;
 
 	/**
@@ -104,7 +104,9 @@ public class UDPNetwork {
 				_packetIn = rcvPacket.getSegment();
 
 				// Calculate random number
-				int rand = random.nextInt(100);
+				double random = Math.random();
+				double x = random*100;
+				int rand = (int)x + 1; //Add 1 to change the range to 1 - 100
 				// Simulate packet delayed, corrupt packet and packet loss
 				if (rand <= _delayedPercent) { // Delayed
 					/*
@@ -112,9 +114,10 @@ public class UDPNetwork {
 					 * delay the transmission using a separate thread, then send to destination
 					 */
 					int finalTotalReceived = totalReceived;
-					new Thread(() -> {
+					double delayedTime = ((10000 * 1.5) + (10000 * 2.0)) / 2;
+                    new Thread(() -> {
 						try {
-							Thread.sleep((long) ((1.5 + random.nextFloat() * 0.5) * 10000)); // Delay between 1.5 and 2 times 10000 ms
+							Thread.sleep((long) delayedTime); // Delay between 1.5 and 2 times 10000 ms
 							System.out.println("Packet delayed!");
 							sendResponse(_packetIn, destIP, Integer.parseInt(destPort));
 							System.out.println("Received: Packet" + finalTotalReceived + ", SEND");
@@ -127,9 +130,9 @@ public class UDPNetwork {
 					String corruptPayload = "0000"; //Add the corrupt to payload
 					rcvPacket.makePacket(corruptPayload);
 					System.out.println("Received: Packet" + totalReceived + ", CORRUPT");
-					_packetIn = new byte[BUFFER_SIZE];
-					_packetIn = rcvPacket.getSegment();
-					sendResponse(_packetIn, destIP, Integer.parseInt(destPort));
+					byte[] packetC = new byte[BUFFER_SIZE];
+					packetC = rcvPacket.getSegment();
+					sendResponse(packetC, destIP, Integer.parseInt(destPort));
 				} else if (rand <= _lostPercent) // Drop Packet
 				{
 					System.err.println("Lost ACK");

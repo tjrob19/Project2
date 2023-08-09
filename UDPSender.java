@@ -162,9 +162,8 @@ public class UDPSender {
 		int pos = subRequestSize;
 		int packetNum = 0;  		// Packet number
 		int seqNum = 0; 			// Sequence number of packet
-		int prevSeqNum = 1;    		// Previous sequence number of the packet
 		boolean delayed = false;  	// Boolen for delay
-		UDPPacket sendPacket = null;	// sended packet
+		UDPPacket sendPacket = null;	// sent packet
 		UDPPacket rcvPacket = null;		// Received packet
 		String msg = "";			//Final message
 
@@ -228,7 +227,7 @@ public class UDPSender {
 			_ack = rcvPacket.validateMessage();
 
 			// If packet is corrupt, resend the packet.
-            if (!rcvCheckSum.equals(sendCheckSum)) {
+            if(!rcvCheckSum.equals(sendCheckSum)) {
                 if (Objects.equals(rcvPacket.getSequence(), sendPacket.getSequence())) {
                     System.out.println("The packet number: " + packetNum + " CORRUPT, re-sending");
 					packetNum -= 1;
@@ -236,22 +235,23 @@ public class UDPSender {
                     if (sendRequest() < 0) {
                         return;
                     }
-                } else {
-                    System.out.println("Recieved " + _ack + " for packet " + packetNum);
                 }
-            } else {
-                System.out.println("Recieved " + _ack + " for packet " + packetNum);
+
+				// Receive the response
+				rcvPacket = receiveResponse();
+				_ack = rcvPacket.validateMessage();
+				packetNum += 1;
             }
 
-           if ((!rcvPacket.isLastMessage && requestSize > 0 )) {
-                prevSeqNum = seqNum;  // update previousely sequence
-                seqNum = getSequenceNum(seqNum); // update the current sequence
-		   } else {
-			   // Print the whole message
-                String output = msg.substring(0, msg.length() - 1);
-                System.err.println("Packet completely sent: " + output);
-                return;
-		   }
+			if ((!rcvPacket.isLastMessage && requestSize > 0 )) {
+				System.out.println("Recieved " + _ack + " for packet " + packetNum);
+				seqNum = getSequenceNum(seqNum); // update the current sequence
+			} else {
+				// Print the whole message
+				String output = msg.substring(0, msg.length() - 1);
+				System.err.println("Packet completely sent: " + output);
+				return;
+			}
         }
 	}
 
